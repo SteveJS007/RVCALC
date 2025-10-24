@@ -1,0 +1,17 @@
+{
+  "builds": [
+    {
+      "src": "*",
+      "use": "@vercel/static-build",
+      "config": {
+        "zeroConfig": true
+      }
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/solarcalculator.html"
+    }
+  ]
+}
