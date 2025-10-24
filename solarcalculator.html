@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive RV Solar Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        .value-label {
+            transition: color 0.3s ease;
+        }
+        .result-card h3 {
+            font-size: 2.5rem;
+            line-height: 1;
+        }
+        .result-card p {
+            font-size: 0.9rem;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 250px; /* REDUCED HEIGHT */
+            max-height: 300px; /* REDUCED MAX HEIGHT */
+        }
+         input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #14532d;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type=range]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #14532d;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        /* PRINT STYLES: Hide interactive UI, show report container */
+        @media print {
+            body {
+                font-size: 10pt; /* Smaller base font for print */
+            }
+            body > .max-w-7xl:not(#print-report-container) {
+                display: none !important;
+            }
+            #print-report-container {
+                display: block !important;
+                max-width: 800px; /* Standard print width */
+                margin: 0 auto;
+                padding: 0;
+            }
+            /* Target elements for tighter spacing */
+            h1, h2, h3, h4 {
+                margin-top: 0.5em !important;
+                margin-bottom: 0.25em !important;
+            }
+            .print-section-header {
+                padding-bottom: 0.25rem !important;
+                margin-bottom: 0.5rem !important;
+            }
+            .print-detail-grid > div {
+                padding-top: 2px !important;
+                padding-bottom: 2px !important;
+            }
+            .text-xs, .text-sm {
+                font-size: 0.7rem !important; /* Ensure readable but small font for details */
+            }
+        }
+    </style>
+</head>
+<body class="bg-stone-50 text-gray-800">
+    <!-- Chosen Palette: Warm Neutral with Green Accent --><!-- Application Structure Plan: A four-part, top-to-bottom workflow. Section 1 sets global system parameters (voltage, sun hours, panel wattage, INSTALLED battery capacity) and cost inputs, including new dynamic cost adjustments based on Vehicle Readiness Level. Section 2 allows dynamic management of the appliance load. Section 3 is a real-time dashboard displaying component sizing (panels, controller, inverter) and autonomy. Section 4 is a new Estimated Cost Breakdown, providing practical budgeting insights. This structure prioritizes the relationship between consumption, fixed equipment choices (like installed Ah and panel count), resulting performance, and final cost. --><!-- Visualization & Content Choices: 1. System Inputs -> Goal: Inform/Input -> Presentation: Interactive sliders and number inputs for system specs and new cost variables, plus a new radio group for Vehicle Readiness Level controlling 3 cost inputs simultaneously. -> Interaction: User adjusts values, triggering global recalculation. Justification: Flexible input for fixed component choices, oversizing, and budget definition. 2. Appliance List -> Goal: Organize/Input -> Presentation: Dynamically generated table with dropdowns for 12 common appliances, auto-filling wattage values, where users only input hours. -> Interaction: User selects appliance type and enters hours. Justification: Greatly improves user experience by reducing manual data entry for the most common items. 3. Consumption Breakdown -> Goal: Show Proportions -> Viz: Donut Chart (Chart.js/Canvas) -> Interaction: Hover to see appliance-specific Watt-hour usage. Justification: Provides an immediate visual insight into the largest energy consumers. 4. Final Sizing/Cost -> Goal: Inform/Synthesize -> Presentation: Dashboard cards for component sizing (MPPT, PWM, Inverter) and Autonomy, plus a new cost breakdown table with dynamic cost adjustments. Justification: Presents final calculated data in a scannable format, prioritizing safety and budget planning. --><!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. --><div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8" id="main-content-wrapper">
+        
+        <header class="text-center mb-6">
+            <!-- Customer Information Section -->
+            <div class="mt-6 mb-4 border p-4 rounded-lg bg-white shadow-sm text-left">
+                <h3 class="text-xl font-bold text-gray-700 mb-2">Customer Information</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div>
+                        <label class="block font-medium text-gray-600">Customer Name:</label>
+                        <input type="text" placeholder="Enter name" class="w-full border-b border-gray-300 focus:border-green-800 outline-none p-1">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-gray-600">RV Model/Year:</label>
+                        <input type="text" placeholder="Enter RV details" class="w-full border-b border-gray-300 focus:border-green-800 outline-none p-1">
+                    </div>
+                    <div>
+                        <label class="block font-medium text-gray-600">Date:</label>
+                        <input type="text" value="${new Date().toLocaleDateString()}" readonly class="w-full border-b border-gray-300 bg-gray-50 outline-none p-1">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Updated Header: Main Title -->
+            <div class="mt-6 mb-2">
+                <h2 class="text-3xl font-bold text-gray-700">RV SOLAR SYSTEM DESIGN & COST ESTIMATOR</h2>
+            </div>
+            <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Calculator Results</h1>
+            
+        </header>
+
+        <main class="space-y-12">
+
+            <!-- Section 1: System Configuration & Cost Inputs --><section id="system-setup">
+                <div class="border-b border-gray-200 pb-5 mb-8">
+                    <h2 class="text-2xl font-semibold leading-7 text-gray-900">1. System & Battery Setup</h2>
+                    <p class="mt-1 text-md leading-6 text-gray-600">Define the core parameters of your solar setup and the capacity of your installed battery bank.</p>
+                </div>
+                <!-- Core System Inputs (3x3 Grid) --><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    <!-- System Voltage --><div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                        <label for="systemVoltage" class="block text-sm font-bold text-gray-700">System Voltage (V)</label>
+                        <select id="systemVoltage" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                            <option>12</option>
+                            <option>24</option>
+                            <option>48</option>
+                        </select>
+                        <p class="mt-2 text-xs text-gray-500">12V is most common for RVs.</p>
+                    </div>
+
+                    <!-- Peak Sun Hours -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                        <label for="peakSunHours" class="block text-sm font-bold text-gray-700">Peak Sun Hours (PSH)</label>
+                        <div class="flex items-center space-x-4">
+                            <input type="range" id="peakSunHours" min="2" max="5" step="0.5" value="3.0" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                            <span id="peakSunHoursValue" class="font-semibold text-green-900 value-label w-12 text-center">3.0 h</span>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500">Average daily hours of effective sunlight in your location.</p>
+                    </div>
+
+                    <!-- Installed Battery Capacity (NEW INPUT) --><div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                        <label for="installedBatteryAh" class="block text-sm font-bold text-gray-700">Installed Battery Capacity (Ah)</label>
+                        <input type="number" id="installedBatteryAh" value="200" min="10" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                        <p class="mt-2 text-xs text-gray-500">The total Amp-Hour capacity of your battery bank (e.g., 2x 100Ah = 200Ah).</p>
+                    </div>
+
+                    <!-- Battery Type / DoD --><div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                        <label for="batteryType" class="block text-sm font-bold text-gray-700">Battery Type</label>
+                        <select id="batteryType" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                            <option value="0.8">LiFePO4 (80% DoD)</option>
+                            <option value="0.5">Lead-Acid/AGM (50% DoD)</option>
+                        </select>
+                        <p class="mt-2 text-xs text-gray-500">Affects the usable capacity of your battery bank.</p>
+                    </div>
+                    
+                    <!-- System Loss (Updated Min/Default to 20%) --><div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                        <label for="systemLossFactor" class="block text-sm font-bold text-gray-700">System Loss Factor</label>
+                        <div class="flex items-center space-x-4">
+                            <input type="range" id="systemLossFactor" min="0.20" max="0.30" step="0.01" value="0.20" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                            <span id="systemLossFactorValue" class="font-semibold text-green-900 value-label w-12 text-center">20%</span>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500">Accounts for wiring, dust, and component inefficiencies. Minimum 20% recommended.</p>
+                    </div>
+
+                    <!-- Panel Wattage --><div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                        <label for="panelWattage" class="block text-sm font-bold text-gray-700">Panel Wattage (W)</label>
+                        <input type="number" id="panelWattage" value="200" min="50" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                        <p class="mt-2 text-xs text-gray-500">Wattage of a single solar panel you plan to purchase.</p>
+                    </div>
+                    
+                    <!-- Extra Panels Count (NEW INPUT) -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                        <label for="extraPanels" class="block text-sm font-bold text-gray-700">Extra Panels (Count)</label>
+                        <!-- CHANGED MIN TO -5 -->
+                        <input type="number" id="extraPanels" value="0" min="-5" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                        <p class="mt-2 text-xs text-gray-500">Add or subtract panels from the calculated minimum.</p>
+                    </div>
+
+                    <!-- Max AC Load --><div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 md:col-span-1 lg:col-span-1">
+                        <label for="maxAcLoad" class="block text-sm font-bold text-gray-700">Max Simultaneous AC Load (W)</label>
+                        <input type="number" id="maxAcLoad" value="1500" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                        <p class="mt-2 text-xs text-gray-500">Highest wattage you'll use at once (e.g., microwave).</p>
+                    </div>
+
+                    <!-- Inverter Surge Factor (NEW INPUT) --><div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 md:col-span-1 lg:col-span-1">
+                        <label for="inverterSurgeFactor" class="block text-sm font-bold text-gray-700">Inverter Surge Factor (%)</label>
+                        <div class="flex items-center space-x-4">
+                            <input type="range" id="inverterSurgeFactor" min="1.0" max="2.0" step="0.1" value="1.5" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                            <span id="inverterSurgeFactorValue" class="font-semibold text-green-900 value-label w-12 text-center">150%</span>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500">Safety factor (e.g., 150%) applied to handle appliance startup surges.</p>
+                    </div>
+                    
+                    <!-- Max Cable Run Length (NEW INPUT) -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 md:col-span-1 lg:col-span-1">
+                        <label for="cableLength" class="block text-sm font-bold text-gray-700">Max Cable Run Length (ft)</label>
+                        <input type="number" id="cableLength" value="10" min="1" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                        <p class="mt-2 text-xs text-gray-500">One-way distance (battery to inverter/controller).</p>
+                    </div>
+                </div>
+
+                <!-- Cost Inputs (New Group) --><div class="border-t border-gray-200 pt-5 mt-5">
+                    <h3 class="text-xl font-semibold leading-6 text-gray-900 mb-4">Cost Inputs (for Estimation)</h3>
+                    <!-- First row of 3 inputs: Panel, Controller, Inverter -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                        <!-- Panel Unit Cost -->
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                            <label for="panelUnitCost" class="block text-sm font-bold text-gray-700">Panel Unit Cost ($)</label>
+                            <input type="number" id="panelUnitCost" value="0" min="0" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                            <p class="mt-2 text-xs text-gray-500">Cost of a single solar panel.</p>
+                        </div>
+                        <!-- Controller Unit Cost -->
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                            <label for="controllerUnitCost" class="block text-sm font-bold text-gray-700">MPPT Controller Unit Cost ($)</label>
+                            <input type="number" id="controllerUnitCost" value="0" min="0" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                            <p class="mt-2 text-xs text-gray-500">Estimated cost for the base calculated size (e.g., 40A, 60A).</p>
+                        </div>
+                        <!-- Inverter Unit Cost -->
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                            <label for="inverterUnitCost" class="block text-sm font-bold text-gray-700">Inverter Unit Cost ($)</label>
+                            <input type="number" id="inverterUnitCost" value="0" min="0" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                            <p class="mt-2 text-xs text-gray-500">Estimated cost for the calculated Inverter size (e.g., 2000W, 3000W).</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Second row of 3 inputs: Battery, Breaker, Misc. -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Total Battery Bank Cost (CHANGED FROM COST PER AH) -->
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                            <label for="totalBatteryBankCost" class="block text-sm font-bold text-gray-700">Total Battery Bank Cost ($)</label>
+                            <input type="number" id="totalBatteryBankCost" value="0" min="0" step="10" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                            <p class="mt-2 text-xs text-gray-500">Total installed cost for your entire battery bank.</p>
+                        </div>
+                        
+                        <!-- Main DC Breaker/Fuse Cost Input -->
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                            <label for="breakerCost" class="block text-sm font-bold text-gray-700">Main DC Breaker/Fuse Cost ($)</label>
+                            <input type="number" id="breakerCost" value="0" min="0" step="10" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                            <p class="mt-2 text-xs text-gray-500">Cost of the main battery bank safety component.</p>
+                        </div>
+
+                         <!-- Misc Supplies Cost (Editable) -->
+                         <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                            <label for="miscSuppliesCost" class="block text-sm font-bold text-gray-700">Misc. Supplies Cost ($)</label>
+                            <input type="number" id="miscSuppliesCost" value="0" min="0" step="50" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm font-semibold text-gray-800">
+                            <p class="mt-2 text-xs text-gray-500">Estimate for wiring, fuses, mounting, etc.</p>
+                        </div>
+                    </div>
+
+                    <!-- Labour & DC-DC Cost row -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-5 mt-5 border-t border-gray-200">
+                        <!-- Labour Hours (Editable) -->
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                            <label for="labourHours" class="block text-sm font-bold text-gray-700">Estimated Labour Hours (h)</label>
+                            <div class="flex items-baseline space-x-2">
+                                <input type="number" id="labourHours" value="0" min="0" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm font-semibold text-gray-800">
+                                <span class="text-xs text-gray-500">@ $150/hr (Fixed Rate)</span>
+                            </div>
+                            <p class="mt-2 text-xs text-gray-500">Hours required for installation.</p>
+                        </div>
+
+                        <!-- DC-DC Converter Cost Input -->
+                        <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                            <label for="dcDcConverterCost" class="block text-sm font-bold text-gray-700">DC-DC Converter Unit Cost ($) <span id="dcDcRequiredLabel" class="text-red-600"></span></label>
+                            <input type="number" id="dcDcConverterCost" value="0" min="0" class="mt-2 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-800 focus:ring-green-800 sm:text-sm">
+                            <p class="mt-2 text-xs text-gray-500">Cost for the 24V-to-12V converter, if required.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 2: Daily Load Calculation --><section id="load-calculation">
+                <div class="border-b border-gray-200 pb-5 mb-8">
+                    <h2 class="text-2xl font-semibold leading-7 text-gray-900">2. Daily Appliance Load</h2>
+                     <p class="mt-1 text-md leading-6 text-gray-600">List all electrical devices you plan to use daily. The more accurate this list, the better your system will be sized to meet your actual needs. Wattage is pre-filled when you select an appliance type.</p>
+                </div>
+                <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-6">
+                        <div id="appliance-list">
+                            <!-- JS will populate this --></div>
+                        <div class="mt-6 flex justify-between items-center">
+                            <button id="add-appliance" class="rounded-md bg-green-800 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-green-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600">Add Appliance</button>
+                            <div class="text-right space-y-2">
+                                <div class="border-b pb-2 border-gray-200">
+                                    <p class="text-sm text-gray-500">Total Raw Daily Usage</p>
+                                    <p id="total-watt-hours" class="text-2xl font-bold text-green-900">0 Wh/Day</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-medium text-gray-700">Daily Energy Target (Wh) - incl. 20% Array Cushion</p>
+                                    <p id="adjusted-wh-needed" class="text-2xl font-bold text-green-900">0 Wh/Day</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Section 3: Sizing Results (RESTYLED TO 2 ROWS OF 3 CARDS) --><section id="sizing-results">
+                 <div class="border-b border-gray-200 pb-5 mb-8">
+                    <h2 class="text-2xl font-semibold leading-7 text-gray-900">3. System Sizing Results & Performance</h2>
+                    <p class="mt-1 text-md leading-6 text-gray-600">Calculated component sizes based on your load, and the resulting battery performance from your installed capacity.</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    
+                    <!-- Row 1 of 3: Panels, Array Wp, Autonomy -->
+                    <div class="bg-white p-6 rounded-lg shadow-lg border-green-800 border-4 result-card">
+                        <h3 id="panel-count" class="font-bold text-green-900">0</h3>
+                        <p id="panel-count-label" class="font-semibold text-gray-700">Total Panels Installed (200W each)</p>
+                        <p class="mt-2 text-xs text-gray-500">The calculated minimum required panels (including 20% buffer) plus your extra panels.</p>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-sm border-green-800 border-2 result-card">
+                        <h3 id="solar-array-size" class="font-bold text-green-900">0</h3>
+                        <p class="font-semibold text-gray-700">Installed Array (Wp)</p>
+                        <p class="mt-2 text-xs text-gray-500">Total wattage of your final solar array. Used for controller sizing.</p>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-lg shadow-sm border-green-800 border-2 result-card">
+                        <h3 id="actualAutonomy" class="font-bold text-green-900">0.0</h3>
+                        <p class="font-semibold text-gray-700">Actual Days of Autonomy</p>
+                        <p class="mt-2 text-xs text-gray-500">The maximum sunless days your installed battery bank can power your current load.</p>
+                    </div>
+                    
+                    <!-- Row 2 of 3: MPPT, Main DC Fuse (MOVED), Inverter -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border-green-800 border-2 result-card">
+                        <h3 id="controller-rating" class="font-bold text-gray-800">0</h3>
+                        <p class="font-semibold text-gray-700">MPPT Controller (A)</p>
+                        <p id="mpptVoltageWarning" class="mt-2 text-xs font-semibold text-red-600 hidden">⚠️ MPPT Vmax Check Required!</p>
+                    </div>
+                    
+                    <!-- Main DC Fuse/Breaker Result (MOVED FROM SAFETY GROUP) -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border-red-600 border-2 result-card">
+                        <h3 id="mainFuseRating" class="font-bold text-red-700">0</h3>
+                        <p class="font-semibold text-gray-700">Main DC Fuse/Breaker (A)</p>
+                        <p class="mt-2 text-xs text-gray-500">Calculated based on max system draw (Inverter/Battery C-rating). **CRITICAL SAFETY COMPONENT.**</p>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-lg shadow-sm border-green-800 border-2 result-card">
+                        <h3 id="inverter-rating" class="font-bold text-gray-800">0</h3>
+                        <p class="font-semibold text-gray-700">Inverter (W)</p>
+                        <p class="mt-2 text-xs text-gray-500">Sized to handle your maximum simultaneous AC load, including the **surge factor**.</p>
+                    </div>
+                    
+                </div>
+                
+                <!-- Safety & Wiring Group (Full Width below component sizing) -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                    
+                    <!-- Required Cable Gauge (1/3 Width) -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border-red-600 border-2 result-card">
+                        <h3 id="requiredCableGauge" class="font-bold text-red-700">---</h3>
+                        <p class="font-semibold text-gray-700">Required Cable Gauge (AWG)</p>
+                        <p class="mt-2 text-xs text-gray-500">Minimum AWG size required for a safe <span id="cableLengthDisplay">0</span> ft run (3% Voltage Drop).</p>
+                    </div>
+                    
+                    <!-- Wiring Safety Warning (2/3 Width - Expanded) -->
+                    <div id="wiringSafetyWarning" class="bg-red-50 p-6 rounded-lg shadow-sm border-red-600 border-2 md:col-span-2">
+                        <h4 class="text-lg font-semibold text-red-700 mb-2">🚨 CRITICAL SAFETY CHECK!</h4>
+                        <p class="text-sm text-red-600" id="wiringSafetyText">The calculator provides the **minimum** AWG. You **must** verify cable ampacity for extreme temps and terminal ratings.</p>
+                    </div>
+
+                    <!-- Wiring Recommendation Card (Full Width) -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 md:col-span-3">
+                         <h4 class="text-lg font-semibold text-gray-800 mb-2">Solar Panel Wiring Recommendation</h4>
+                         <p id="wiringRecommendationText" class="text-sm text-gray-600">Calculation is pending...</p>
+                         <p class="mt-2 text-xs text-gray-500">This recommendation is based on your Peak Sun Hours (PSH). Always verify the wiring against your panel's Voc and your MPPT controller's max voltage. **PWM requires Parallel wiring for 12V systems.**</p>
+                    </div>
+
+                    <!-- Notes for Clarifications Section (NEW) -->
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 md:col-span-3">
+                         <h4 class="text-lg font-semibold text-gray-800 mb-2">Notes for Clarifications</h4>
+                         <textarea id="notesArea" class="w-full border border-gray-300 rounded-md p-2 h-32 text-sm focus:border-green-800 focus:ring-green-800" placeholder="Enter any specific RV details, client requests, or installation notes here (e.g., custom panel location, battery box details, system limitations)."></textarea>
+                    </div>
+                </div>
+                
+                <!-- Daily Energy Breakdown (LIST VIEW) -->
+                <div class="mt-12 pt-6 border-t border-gray-200">
+                    <h3 class="text-2xl font-semibold leading-7 text-gray-900 mb-4">Daily Energy Use Breakdown (%)</h3>
+                    <p class="mt-1 text-md leading-6 text-gray-600 mb-6">Percentage breakdown of which appliances contribute the most to the total daily energy consumption.</p>
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mx-auto max-w-md sm:max-w-lg">
+                        <div id="load-percentage-list" class="space-y-2">
+                            <!-- JS will populate this list -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Section 4: Estimated Cost Breakdown (NEW SECTION) --><section id="cost-results">
+                 <div class="border-b border-gray-200 pb-5 mb-8 flex justify-between items-center">
+                    <h2 class="text-2xl font-semibold leading-7 text-gray-900">4. Estimated Cost Breakdown</h2>
+                    <button id="print-report-btn" class="rounded-md bg-gray-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-gray-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-600 transition duration-150 ease-in-out">
+                        Print Report
+                    </button>
+                </div>
+                <div class="bg-white p-6 rounded-lg shadow-lg border-2 border-gray-200">
+                    <div class="grid grid-cols-2 gap-4 text-sm font-medium text-gray-700 py-2 border-b">
+                        <div class="text-left">Component</div>
+                        <div class="text-right">Estimated Cost</div>
+                    </div>
+                    <div id="cost-breakdown" class="space-y-1 mt-2">
+                        <div class="grid grid-cols-2 gap-4 py-1">
+                            <div class="text-left">Panels (<span id="costPanelCount">0</span> units @ $<span id="costPanelUnit">0</span> each)</div>
+                            <div id="costPanelTotal" class="text-right font-medium text-gray-800">$0</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 py-1">
+                            <div class="text-left">Battery Bank</div>
+                            <div id="costBatteryTotal" class="text-right font-medium text-gray-800">$0</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 py-1">
+                            <div class="text-left">MPPT Controller (Base Cost)</div>
+                            <div id="costControllerTotal" class="text-right font-medium text-gray-800">$0</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 py-1">
+                            <div class="text-left">Inverter (Based on calculated size)</div>
+                            <div id="costInverterTotal" class="text-right font-medium text-gray-800">$0</div>
+                        </div>
+                        <!-- Main Fuse/Breaker Cost Row -->
+                        <div class="grid grid-cols-2 gap-4 py-1">
+                            <div class="text-left">Main DC Breaker/Fuse</div>
+                            <div id="costBreakerTotal" class="text-right font-medium text-gray-800">$0</div>
+                        </div>
+                        <!-- DC-DC Converter Cost Row (NEW) -->
+                        <div class="grid grid-cols-2 gap-4 py-1">
+                            <div class="text-left">DC-DC Converter</div>
+                            <div id="costDcDcConverterTotal" class="text-right font-medium text-gray-800">$0</div>
+                        </div>
+                        <!-- Misc. Supplies Row --><div class="grid grid-cols-2 gap-4 py-1">
+                            <div class="text-left">Misc. Supplies (Wiring, Hardware, etc.)</div>
+                            <div id="costMiscTotal" class="text-right font-medium text-gray-800">$0</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 py-1 border-t pt-2">
+                            <div class="text-left">Labour (<span id="costLabourHours">0</span> h @ $150/hr)</div>
+                            <div id="costLabourTotal" class="text-right font-medium text-gray-800">$0</div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-2 gap-4 py-3 border-t-4 border-double border-green-800 mt-4">
+                        <div class="text-left text-lg font-bold text-gray-900">Total Estimated Cost</div>
+                        <div id="costTotal" class="text-right text-3xl font-bold text-green-900">$0</div>
+                    </div>
+                </div>
+            </section>
+
+
+        </main>
+        
+        <footer class="text-center mt-16 text-xs text-gray-400">
+            <p>This calculator provides an estimate only based on customer requirements. All costs are before taxes.</p>
+            <p class="mt-1">Copyright 2025 S. Syms</p>
+        </footer>
+
+    </div>
+
+    <!-- Print Report Container (Hidden by default) --><div id="print-report-container" class="hidden p-8">
+        <!-- Content will be generated here by JavaScript before printing --></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+             // Preset common appliances with estimated wattages
+            const commonAppliances = [
+                { name: 'Custom Appliance', watts: 0, editableWatts: true },
+                { name: '12V Fridge/Freezer (200L)', watts: 80, editableWatts: false }, 
+                { name: 'MaxxAir Fan (High)', watts: 30, editableWatts: false },
+                { name: 'LED Lights (Total)', watts: 15, editableWatts: false },
+                { name: 'Laptop Charging (AC via Inverter)', watts: 65, editableWatts: false },
+                { name: 'Cell Phone Charging (DC)', watts: 10, editableWatts: false },
+                { name: 'CPAP Machine', watts: 65, editableWatts: false }, 
+                { name: 'TV/Monitor (32")', watts: 50, editableWatts: false },
+                { name: 'Microwave', watts: 900, editableWatts: false }, 
+                { name: 'Water Pump', watts: 60, editableWatts: false },
+                { name: 'Portable AC Unit (5k BTU)', watts: 1000, editableWatts: false }, // HIGH DRAW
+                { name: 'Induction Cooktop (1 Burner)', watts: 1500, editableWatts: false } // HIGH DRAW
+            ];
+
+            // Helper function to get the wattage for a given type name
+            const getApplianceWatts = (typeName) => {
+                const appliance = commonAppliances.find(a => a.name === typeName);
+                return appliance ? appliance.watts : 0;
+            };
+
+            const state = {
+                appliances: [
+                    { id: Date.now() + 1, type: 'LED Lights (Total)', watts: getApplianceWatts('LED Lights (Total)'), hours: 4 },
+                    { id: Date.now() + 2, type: 'Laptop Charging (AC via Inverter)', watts: getApplianceWatts('Laptop Charging (AC via Inverter)'), hours: 2 },
+                    { id: Date.now() + 3, type: '12V Fridge/Freezer (200L)', watts: getApplianceWatts('12V Fridge/Freezer (200L)'), hours: 18 }, 
+                    { id: Date.now() + 4, type: 'Water Pump', watts: getApplianceWatts('Water Pump'), hours: 0.1 },
+                ]
+            };
+
+            const systemVoltageEl = document.getElementById('systemVoltage');
+            const peakSunHoursEl = document.getElementById('peakSunHours');
+            const installedBatteryAhEl = document.getElementById('installedBatteryAh'); 
+            const batteryTypeEl = document.getElementById('batteryType');
+            const systemLossFactorEl = document.getElementById('systemLossFactor');
+            const maxAcLoadEl = document.getElementById('maxAcLoad');
+            const panelWattageEl = document.getElementById('panelWattage');
+            const extraPanelsEl = document.getElementById('extraPanels'); 
+            const inverterSurgeFactorEl = document.getElementById('inverterSurgeFactor');
+            const cableLengthEl = document.getElementById('cableLength'); 
+            const dcDcConverterCostEl = document.getElementById('dcDcConverterCost'); 
+            const dcDcRequiredLabelEl = document.getElementById('dcDcRequiredLabel');
+            
+            // COST ELEMENTS INPUTS (Now act as BASE)
+            const panelUnitCostEl = document.getElementById('panelUnitCost');
+            const controllerUnitCostEl = document.getElementById('controllerUnitCost');
+            const inverterUnitCostEl = document.getElementById('inverterUnitCost');
+            const totalBatteryBankCostEl = document.getElementById('totalBatteryBankCost'); // CHANGED ID
+            const breakerCostEl = document.getElementById('breakerCost'); 
+            
+            // ADJUSTED/CALCULATED COST INPUTS
+            const labourHoursEl = document.getElementById('labourHours');
+            const miscSuppliesCostEl = document.getElementById('miscSuppliesCost'); 
+
+            const LABOUR_RATE = 150; // Fixed labour rate per hour
+
+            const applianceListEl = document.getElementById('appliance-list');
+            const addApplianceBtn = document.getElementById('add-appliance');
+            const printReportBtn = document.getElementById('print-report-btn');
+            const printContainerEl = document.getElementById('print-report-container');
+
+            const totalWattHoursEl = document.getElementById('total-watt-hours');
+            const adjustedWhNeededEl = document.getElementById('adjusted-wh-needed');
+            const solarArraySizeEl = document.getElementById('solar-array-size');
+            const actualAutonomyEl = document.getElementById('actualAutonomy'); 
+            const controllerRatingEl = document.getElementById('controller-rating');
+            const inverterRatingEl = document.getElementById('inverter-rating');
+            const panelCountEl = document.getElementById('panel-count');
+            const panelCountLabelEl = document.getElementById('panel-count-label');
+            const wiringRecommendationTextEl = document.getElementById('wiringRecommendationText');
+            const mpptVoltageWarningEl = document.getElementById('mpptVoltageWarning');
+            const mainFuseRatingEl = document.getElementById('mainFuseRating'); 
+            const requiredCableGaugeEl = document.getElementById('requiredCableGauge'); 
+            const cableLengthDisplayEl = document.getElementById('cableLengthDisplay'); 
+            const wiringSafetyTextEl = document.getElementById('wiringSafetyText'); 
+            const loadPercentageListEl = document.getElementById('load-percentage-list'); // NEW ID
+            const notesAreaEl = document.getElementById('notesArea'); // NEW ID
+
+            // Removed consumptionChart definition
+
+            // COST ELEMENTS OUTPUT
+            const costPanelCountEl = document.getElementById('costPanelCount');
+            const costPanelUnitEl = document.getElementById('costPanelUnit');
+            const costPanelTotalEl = document.getElementById('costPanelTotal');
+            // Removed costBatteryAhEl and costBatteryUnitEl
+            const costBatteryTotalEl = document.getElementById('costBatteryTotal');
+            const costControllerTotalEl = document.getElementById('costControllerTotal');
+            const costInverterTotalEl = document.getElementById('costInverterTotal');
+            const costLabourHoursEl = document.getElementById('costLabourHours');
+            const costLabourTotalEl = document.getElementById('costLabourTotal');
+            const costMiscTotalEl = document.getElementById('costMiscTotal'); 
+            const costBreakerTotalEl = document.getElementById('costBreakerTotal'); 
+            const costDcDcConverterTotalEl = document.getElementById('costDcDcConverterTotal'); 
+            const costTotalEl = document.getElementById('costTotal');
+
+            function formatCurrency(amount) {
+                return `$${Math.round(amount).toLocaleString()}`;
+            }
+
+            // REPLACED CHART FUNCTION WITH LIST GENERATOR
+            function updateChart() {
+                const totalRawWh = state.appliances.reduce((sum, app) => sum + (app.watts * app.hours), 0);
+                loadPercentageListEl.innerHTML = '';
+
+                if (totalRawWh === 0) {
+                    loadPercentageListEl.innerHTML = `<p class="text-center text-gray-500 py-4">Enter appliance usage to view breakdown.</p>`;
+                    return;
+                }
+
+                const sortedLoads = state.appliances
+                    .map(app => ({
+                        type: app.type,
+                        whDay: app.watts * app.hours,
+                        percentage: (app.watts * app.hours / totalRawWh) * 100
+                    }))
+                    .filter(app => app.whDay > 0)
+                    .sort((a, b) => b.whDay - a.whDay);
+
+                sortedLoads.forEach(load => {
+                    const el = document.createElement('div');
+                    el.className = 'flex justify-between items-center text-sm font-medium';
+                    el.innerHTML = `
+                        <span>${load.type}</span>
+                        <span class="font-semibold text-green-800">${load.percentage.toFixed(1)}%</span>
+                    `;
+                    loadPercentageListEl.appendChild(el);
+                });
+                
+                // Store percentage breakdown for print report
+                window.solarReportData.percentageBreakdown = sortedLoads;
+            }
+            
+            // AWG Lookup table (Circular Mils) based on NEC values and common AWG sizes
+            const cmilLookup = [
+                { cmil: 211600, awg: '4/0' },
+                { cmil: 167800, awg: '3/0' },
+                { cmil: 133100, awg: '2/0' },
+                { cmil: 105500, awg: '1/0' },
+                { cmil: 83690, awg: '1' },
+                { cmil: 66360, awg: '2' },
+                { cmil: 52620, awg: '3' },
+                { cmil: 41740, awg: '4' },
+                { cmil: 26240, awg: '6' },
+                { cmil: 16510, awg: '8' },
+                { cmil: 10380, awg: '10' },
+                { cmil: 6530, awg: '12' },
+                { cmil: 4110, awg: '14' },
+                { cmil: 2580, awg: '16' } // Smallest common DC wire
+            ];
+
+            // Calculates the minimum required AWG based on max 3% voltage drop for Copper wire.
+            function getCableGauge(amps, voltage, lengthFt) {
+                if (lengthFt <= 0 || amps <= 0 || voltage <= 0) return '---';
+
+                // Copper Resistivity Constant (10.8 CM-Ohms/ft @ 25C)
+                const K = 10.8; 
+                // Maximum acceptable voltage drop (3% of system voltage)
+                const maxVoltageDrop = voltage * 0.03; 
+                
+                // Formula: A = (2 * L * I * K) / VD
+                const requiredCM = (2 * lengthFt * amps * K) / maxVoltageDrop;
+                
+                // Find the smallest wire (largest AWG number) that meets or exceeds the required Circular Mils
+                // Loop through the lookup table from largest CM (smallest AWG number) to smallest CM
+                for (const wire of cmilLookup) {
+                    if (wire.cmil >= requiredCM) {
+                        return wire.awg;
+                    }
+                }
+                
+                // If required CM is larger than 4/0 (211,600 CM), we recommend bundles or custom busbars
+                return '4/0+ (Custom)';
+            }
+
+
+            function calculateAndRender() {
+                let systemVoltage = parseFloat(systemVoltageEl.value);
+                const peakSunHours = parseFloat(peakSunHoursEl.value);
+                const installedBatteryAh = parseFloat(installedBatteryAhEl.value) || 1; 
+                const dod = parseFloat(batteryTypeEl.value);
+                const systemLossFactor = parseFloat(systemLossFactorEl.value);
+                const maxAcLoad = parseFloat(maxAcLoadEl.value) || 0;
+                const panelWattage = parseFloat(panelWattageEl.value) || 1; 
+                const extraPanels = parseInt(extraPanelsEl.value) || 0; 
+                const inverterSurgeFactor = parseFloat(inverterSurgeFactorEl.value) || 1.0;
+                const cableLength = parseFloat(cableLengthEl.value) || 0; 
+                const dcDcConverterCost = parseFloat(dcDcConverterCostEl.value) || 0; 
+                
+                // Base Cost Inputs Retrieval
+                const panelUnitCost = parseFloat(panelUnitCostEl.value) || 0;
+                const baseControllerUnitCost = parseFloat(controllerUnitCostEl.value) || 0;
+                const inverterUnitCost = parseFloat(inverterUnitCostEl.value) || 0;
+                const totalBatteryBankCost = parseFloat(totalBatteryBankCostEl.value) || 0; 
+                const breakerCost = parseFloat(breakerCostEl.value) || 0; 
+                
+                // Directly read Labour and Misc Cost (No Readiness adjustment)
+                const effectiveLabourHours = parseFloat(labourHoursEl.value) || 0;
+                const effectiveMiscCost = parseFloat(miscSuppliesCostEl.value) || 0;
+                const effectiveControllerCost = baseControllerUnitCost;
+                const readinessLabel = 'User Defined'; 
+                
+                // ----------------------------------------------------
+                // *** FOOLPROOF LOGIC: AUTOMATIC 12V -> 24V SWITCH ***
+                // ----------------------------------------------------
+                const shouldRecommend24V = cableLength > 10 && systemVoltage === 12;
+                let voltageAutoAdjusted = false;
+                
+                if (shouldRecommend24V) {
+                    // Check if the current value is 12 and force it to 24 if conditions are met
+                    systemVoltageEl.value = 24;
+                    systemVoltage = 24; // Update local variable
+                    voltageAutoAdjusted = true;
+                }
+
+                // Dynamic Label Update for DC-DC cost
+                const isHighVoltage = systemVoltage > 12;
+                dcDcRequiredLabelEl.textContent = isHighVoltage ? '(Required)' : '';
+                
+                // ------------------------------------
+                // *** VALIDATION CHECK (NEW) ***
+                // ------------------------------------
+                if (isHighVoltage && dcDcConverterCost === 0) {
+                    // Display error and stop calculations
+                    const validationError = "⚠️ **DC-DC Converter Cost Missing!** A converter is mandatory for 12V loads when running a higher voltage main bank. Please enter an estimated cost.";
+                    
+                    wiringSafetyTextEl.innerHTML = `<h4 class="text-lg font-semibold text-red-700 mb-2">VALIDATION ERROR</h4><p class="text-sm text-red-600">${validationError}</p>`;
+                    
+                    // Clear critical outputs
+                    mainFuseRatingEl.textContent = '---';
+                    requiredCableGaugeEl.textContent = '---';
+                    controllerRatingEl.textContent = '---';
+                    inverterRatingEl.textContent = '---';
+                    solarArraySizeEl.textContent = '---';
+                    panelCountEl.textContent = '---';
+                    actualAutonomyEl.textContent = '---';
+                    
+                    // Clear cost outputs
+                    costPanelTotalEl.textContent = '$0';
+                    costBatteryTotalEl.textContent = '$0';
+                    costControllerTotalEl.textContent = '$0';
+                    costInverterTotalEl.textContent = '$0';
+                    costBreakerTotalEl.textContent = '$0';
+                    costDcDcConverterTotalEl.textContent = '$0';
+                    costMiscTotalEl.textContent = '$0';
+                    costLabourTotalEl.textContent = '$0';
+                    costTotalEl.textContent = '$0';
+
+                    // Clear energy breakdown list
+                    loadPercentageListEl.innerHTML = `<p class="text-center text-gray-500 py-4">Validation Error: Fix input above.</p>`;
+                    window.solarReportData = { totalCost: 0, criticalSafetyText: validationError, percentageBreakdown: [], notes: notesAreaEl.value };
+
+                    return; // STOP EXECUTION
+                }
+                
+                // ------------------------------------
+                // SIZING CALCULATIONS (Proceeds if no error)
+                // ------------------------------------
+
+                const totalRawWh = state.appliances.reduce((sum, app) => sum + (app.watts * app.hours), 0);
+                totalWattHoursEl.textContent = `${totalRawWh.toFixed(0)} Wh/Day`;
+
+                // 1. Total Load (Loss Corrected) - Actual consumption to replenish
+                const totalAdjustedWhLossCorrected = totalRawWh / (1 - systemLossFactor);
+
+                // 2. Daily Energy Target (Loss Corrected + 20% Array Sizing Buffer)
+                const totalWhDailyEnergyTarget = totalAdjustedWhLossCorrected * 1.20;
+
+                // Update UI to show this new buffered Wh target
+                adjustedWhNeededEl.textContent = `${totalWhDailyEnergyTarget.toFixed(0)} Wh/Day`;
+
+                // Solar Array Size calculation (MINIMUM REQUIRED Wp)
+                const minSolarArrayWp = totalWhDailyEnergyTarget / peakSunHours;
+
+                // Panel Count calculation (MINIMUM REQUIRED PANELS)
+                const minPanelCount = Math.ceil(minSolarArrayWp / panelWattage);
+                
+                // FINAL Installed Panel Count (Min Required + Extra)
+                const finalPanelCount = minPanelCount + extraPanels;
+                
+                // FINAL Installed Array Wp (Used for Controller Sizing)
+                const actualInstalledWp = finalPanelCount * panelWattage;
+
+
+                // Update Panel Count UI
+                panelCountEl.textContent = finalPanelCount.toFixed(0);
+                panelCountLabelEl.textContent = `Total Panels Installed (${panelWattage.toFixed(0)}W each)`;
+
+                // Display the Installed array size
+                solarArraySizeEl.textContent = actualInstalledWp.toFixed(0); 
+                
+                // Actual Days of Autonomy Calculation (uses the NON-BUFFERED value for consumption)
+                const usableWh = installedBatteryAh * systemVoltage * dod;
+                const actualAutonomy = usableWh / totalAdjustedWhLossCorrected;
+                actualAutonomyEl.textContent = actualAutonomy.toFixed(1);
+
+                // MPPT Controller Rating calculation
+                const controllerRating = (actualInstalledWp / systemVoltage) * 1.25; // 1.25 safety factor
+                const roundedControllerRating = Math.ceil(controllerRating / 10) * 10;
+                controllerRatingEl.textContent = roundedControllerRating.toFixed(0);
+
+                // MPPT Voltage Warning Logic
+                if (finalPanelCount > 0 && systemVoltage < 48) {
+                    mpptVoltageWarningEl.classList.remove('hidden');
+                    mpptVoltageWarningEl.textContent = `⚠️ Check MPPT Vmax! Ensure Panel Voc * Panels in Series does not exceed your controller's max input voltage.`;
+                } else {
+                    mpptVoltageWarningEl.classList.add('hidden');
+                }
+                
+                // Inverter Rating calculation (Initial calculation + Surge Factor)
+                const inverterRatingInitial = maxAcLoad * inverterSurgeFactor;
+                // Round up to the nearest 500
+                const roundedInverterRating = Math.ceil(inverterRatingInitial / 500) * 500;
+                inverterRatingEl.textContent = roundedInverterRating.toFixed(0);
+
+                // Main DC Fuse/Breaker Sizing (Based on Inverter Max DC Draw or Battery Max C-rate)
+                const inverterMaxContinousAmps = (roundedInverterRating / systemVoltage) * 1.25;
+                const roundedFuseRating = Math.ceil(inverterMaxContinousAmps / 10) * 10;
+                mainFuseRatingEl.textContent = roundedFuseRating.toFixed(0);
+                
+                // Cable Gauge Sizing (NEW CALCULATION)
+                const gaugeResult = getCableGauge(roundedFuseRating, systemVoltage, cableLength);
+                requiredCableGaugeEl.textContent = gaugeResult;
+                cableLengthDisplayEl.textContent = cableLength.toFixed(0);
+
+                // Wiring Recommendation Logic
+                let wiringRecommendation = '';
+                if (peakSunHours < 3.5) {
+                    wiringRecommendation = 'Series Wiring Recommended for MPPT. This configuration maximizes voltage, which is better for charging efficiency and overcoming voltage drop in low light or cold conditions.';
+                } else {
+                    wiringRecommendation = 'Parallel or Mixed Wiring Recommended for MPPT. This configuration provides better redundancy and shading tolerance.';
+                }
+                wiringRecommendationTextEl.textContent = wiringRecommendation;
+                
+                // Wiring Safety Warning Text (Contextual)
+                let criticalSafetyText = '';
+                if (voltageAutoAdjusted) {
+                    criticalSafetyText = `✅ **SYSTEM VOLTAGE AUTO-CORRECTED.** The system has automatically switched to **24V** due to the ${cableLength} ft cable run to ensure safe cable sizing and high efficiency. Use a DC-DC converter for your 12V loads.`;
+                } else if (cableLength > 10 && systemVoltage === 12) {
+                    criticalSafetyText = `🚨 **High Recommendation for 24V!** Your ${cableLength} ft cable run with 12V is highly inefficient. Consider switching your system to **24V** and running batteries in series. You will also need to add a DC-DC converter for 12V loads to reduce current, cable size, and cost.`;
+                } else {
+                    criticalSafetyText = 'The calculator provides the **minimum** AWG. You **must** verify cable ampacity for extreme temps and terminal ratings.';
+                }
+                wiringSafetyTextEl.innerHTML = criticalSafetyText;
+
+
+                // ------------------------------------
+                // COST CALCULATIONS (FINAL)
+                // ------------------------------------
+                
+                const costPanels = finalPanelCount * panelUnitCost;
+                const costBattery = totalBatteryBankCost; 
+                const costController = effectiveControllerCost; 
+                const costInverter = inverterUnitCost; 
+                const costLabour = effectiveLabourHours * LABOUR_RATE; 
+                const costBreaker = breakerCost; 
+                const costDcDcConverter = dcDcConverterCost; 
+                const totalCost = costPanels + costBattery + costController + costInverter + costLabour + effectiveMiscCost + costBreaker + costDcDcConverter;
+                
+                // Update Cost Breakdown UI
+                costPanelCountEl.textContent = finalPanelCount.toFixed(0);
+                costPanelUnitEl.textContent = panelUnitCost.toFixed(2);
+                costPanelTotalEl.textContent = formatCurrency(costPanels);
+                
+                costBatteryTotalEl.textContent = formatCurrency(costBattery);
+                
+                costControllerTotalEl.textContent = formatCurrency(costController);
+                costInverterTotalEl.textContent = formatCurrency(costInverter);
+                
+                costLabourHoursEl.textContent = effectiveLabourHours.toFixed(0);
+                costLabourTotalEl.textContent = formatCurrency(costLabour);
+
+                costMiscTotalEl.textContent = formatCurrency(effectiveMiscCost); 
+                costBreakerTotalEl.textContent = formatCurrency(costBreaker); 
+                costDcDcConverterTotalEl.textContent = formatCurrency(costDcDcConverter); 
+                
+                costTotalEl.textContent = formatCurrency(totalCost);
+                // ------------------------------------
+                
+                // Save key data to be accessed by the print function
+                window.solarReportData = {
+                    readinessLabel: 'User Defined',
+                    totalRawWh: totalRawWh.toFixed(0),
+                    adjustedWhNeeded: totalWhDailyEnergyTarget.toFixed(0),
+                    systemVoltage: systemVoltageEl.value,
+                    peakSunHours: peakSunHoursEl.value,
+                    batteryType: batteryTypeEl.options[batteryTypeEl.selectedIndex].text,
+                    installedBatteryAh: installedBatteryAhEl.value,
+                    panelWattage: panelWattageEl.value,
+                    extraPanels: extraPanelsEl.value,
+                    maxAcLoad: maxAcLoadEl.value,
+                    inverterSurgeFactor: inverterSurgeFactorEl.value,
+                    cableLength: cableLengthEl.value, 
+                    
+                    finalPanelCount: finalPanelCount.toFixed(0),
+                    arrayWp: actualInstalledWp.toFixed(0),
+                    autonomy: actualAutonomy.toFixed(1),
+                    mpptRating: roundedControllerRating.toFixed(0),
+                    inverterRating: roundedInverterRating.toFixed(0),
+                    mainFuseRating: roundedFuseRating.toFixed(0), 
+                    cableGauge: gaugeResult, 
+                    wiringRec: wiringRecommendation,
+                    
+                    costPanels: formatCurrency(costPanels),
+                    costBattery: formatCurrency(costBattery),
+                    costController: formatCurrency(costController),
+                    costInverter: formatCurrency(costInverter),
+                    costMisc: formatCurrency(effectiveMiscCost),
+                    costBreaker: formatCurrency(costBreaker), 
+                    costDcDcConverter: formatCurrency(costDcDcConverter), 
+                    costLabour: formatCurrency(costLabour),
+                    totalCost: totalCost,
+                    
+                    appliances: state.appliances.map(app => ({
+                        type: app.type,
+                        watts: app.watts,
+                        hours: app.hours,
+                        whDay: (app.watts * app.hours).toFixed(1)
+                    })),
+                    
+                    // Critical safety text for report (Capture the output from wiringSafetyTextEl)
+                    criticalSafetyText: wiringSafetyTextEl.textContent.trim(),
+                    notes: notesAreaEl.value 
+                };
+
+
+                updateChart();
+            }
+            
+            function printReport() {
+                calculateAndRender(); 
+                const data = window.solarReportData;
+                
+                if (data.totalCost === 0 && data.criticalSafetyText.includes('VALIDATION ERROR')) {
+                    alert('Cannot print report due to validation error. Please enter the required DC-DC Converter Unit Cost.');
+                    return;
+                }
+                
+                // Capture Customer Info from inputs
+                const customerName = document.querySelector('input[placeholder="Enter name"]').value || 'N/A';
+                const rvDetails = document.querySelector('input[placeholder="Enter RV details"]').value || 'N/A';
+                // const date = document.querySelector('input[value*="2025"]').value || 'N/A'; // REMOVED DATE INPUT
+
+
+                // Generate Appliance Load Table Rows
+                const applianceRows = data.appliances.map(app => `
+                    <tr class="border-b">
+                        <td class="px-2 py-1 text-sm font-medium">${app.type}</td>
+                        <td class="px-2 py-1 text-sm text-right">${app.watts} W</td>
+                        <td class="px-2 py-1 text-sm text-right">${app.hours} h</td>
+                        <td class="px-2 py-1 text-sm font-semibold text-right">${app.whDay} Wh</td>
+                    </tr>
+                `).join('');
+                
+                // Generate Percentage Breakdown List Rows
+                const percentageRows = data.percentageBreakdown.map(load => {
+                    // Check if percentage is 0 to avoid printing unnecessary lines for zero usage
+                    if (load.percentage > 0) {
+                        return `
+                            <div class="grid grid-cols-2 gap-4 py-1">
+                                <div>${load.type}</div>
+                                <div class="text-right font-semibold">${load.percentage.toFixed(1)}%</div>
+                            </div>
+                        `;
+                    }
+                    return '';
+                }).join('');
+                
+                // Determine if a DC-DC Converter cost was entered (to decide whether to show the line item)
+                const showDcDc = parseFloat(document.getElementById('dcDcConverterCost').value) > 0 || parseFloat(data.costDcDcConverter.replace(/[$,]/g, '')) > 0;
+                
+                const content = `
+                    <div class="p-4">
+                        <div class="text-center mb-4 border-b pb-2">
+                            <h2 class="text-base font-bold text-gray-700">LEISURE DAYS RV</h2>
+                            <h1 class="text-xl font-bold text-gray-900 mt-1">RV Solar System Installation Report</h1>
+                            <!-- Date line removed -->
+                        </div>
+                        
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2 border-b print-section-header">0. Customer Information</h3>
+                         <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3 print-detail-grid">
+                            <div><span class="font-semibold">Customer Name:</span> ${customerName}</div>
+                            <div><span class="font-semibold">RV Model/Year:</span> ${rvDetails}</div>
+                        </div>
+
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2 border-b print-section-header">1. Load & Energy Requirements</h3>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3 print-detail-grid">
+                            <div><span class="font-semibold">Raw Daily Consumption:</span> ${data.totalRawWh} Wh/Day</div>
+                            <div><span class="font-semibold">System Voltage:</span> ${data.systemVoltage} V</div>
+                            <div><span class="font-semibold">Daily Energy Target (for Array Sizing):</span> ${data.adjustedWhNeeded} Wh/Day</div>
+                            <div><span class="font-semibold">Peak Sun Hours (PSH) Used:</span> ${data.peakSunHours} h</div>
+                            <div><span class="font-semibold">Max Simultaneous AC Load:</span> ${data.maxAcLoad} W</div>
+                            <div><span class="font-semibold">Inverter Surge Factor:</span> ${data.inverterSurgeFactor * 100}%</div>
+                        </div>
+                        
+                        <h4 class="text-base font-semibold text-gray-800 mb-1 border-b print-section-header">Appliance Load Details</h4>
+                        <table class="w-full mb-3 border border-gray-300">
+                            <thead>
+                                <tr class="bg-gray-50 text-left text-sm font-bold text-gray-700">
+                                    <th class="px-2 py-1">Appliance</th>
+                                    <th class="px-2 py-1 text-right">Wattage</th>
+                                    <th class="px-2 py-1 text-right">Hours</th>
+                                    <th class="px-2 py-1 text-right">Wh/Day</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${applianceRows}
+                            </tbody>
+                        </table>
+
+                        <h4 class="text-base font-semibold text-gray-800 mb-1 border-b print-section-header">Load Percentage Breakdown</h4>
+                        <div class="p-2 border border-gray-300 mb-3">
+                            ${percentageRows}
+                        </div>
+
+
+                        <h3 class="text-lg font-semibold text-gray-800 mb-2 border-b print-section-header">2. Component Sizing & Performance</h3>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-3 print-detail-grid">
+                            <div><span class="font-semibold">Total Panels Required:</span> <span class="text-lg font-bold text-green-800">${data.finalPanelCount} x ${data.panelWattage}W</span></div>
+                            <div><span class="font-semibold">Total Installed Array Wp:</span> ${data.arrayWp} Wp</div>
+                            
+                            <div><span class="font-semibold">Battery Type:</span> ${data.batteryType}</div>
+                            <div><span class="font-semibold">Installed Battery Capacity:</span> ${data.installedBatteryAh} Ah</div>
+                            
+                            <div><span class="font-semibold">Required MPPT Controller:</span> <span class="text-lg font-bold">${data.mpptRating} A</span></div>
+                            <div>
+                                <span class="font-semibold">Actual Days of Autonomy:</span> ${data.autonomy} days
+                                <p class="text-xs text-gray-500">(Max sunless days bank can power load.)</p>
+                            </div>
+                            
+                            <div><span class="font-semibold text-red-700">Main DC Fuse/Breaker:</span> ${data.mainFuseRating} A</div>
+                            <div><span class="font-semibold text-red-700">Required Cable Gauge:</span> ${data.cableGauge} AWG (${data.cableLength} ft run)</div>
+                            
+                            <div class="col-span-2"><span class="font-semibold">Wiring Recommendation:</span> ${data.wiringRec}</div>
+                        </div>
+                        
+                        <h4 class="text-base font-semibold text-red-800 mb-1 border-b print-section-header">CRITICAL SAFETY NOTE</h4>
+                        <p class="text-sm text-red-700 mb-3 font-semibold">${data.criticalSafetyText}</p>
+
+
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 border-b print-section-header">3. Estimated Installation Cost</h3>
+                        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm mb-2 print-detail-grid">
+                            <div><span class="font-semibold">Vehicle Readiness Level:</span> ${data.readinessLabel}</div>
+                            <div><span class="font-semibold">Estimated Labour Hours:</span> ${document.getElementById('labourHours').value} h</div>
+                        </div>
+                        
+                        <div class="w-full max-w-sm ml-auto mr-0">
+                            <div class="grid grid-cols-2 gap-4 text-sm py-1 border-b">
+                                <div class="font-medium">Component Cost</div>
+                                <div class="font-medium text-right">Estimate</div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 py-1"><div>Panels</div><div class="text-right">${data.costPanels}</div></div>
+                            <div class="grid grid-cols-2 gap-4 py-1"><div>Battery Bank</div><div class="text-right">${data.costBattery}</div></div>
+                            <div class="grid grid-cols-2 gap-4 py-1"><div>MPPT Controller</div><div class="text-right">${data.costController}</div></div>
+                            <div class="grid grid-cols-2 gap-4 py-1"><div>Inverter</div><div class="text-right">${data.costInverter}</div></div>
+                            <div class="grid grid-cols-2 gap-4 py-1"><div>DC Breaker/Fuse</div><div class="text-right">${data.costBreaker}</div></div>
+                            ${showDcDc ? `<div class="grid grid-cols-2 gap-4 py-1"><div>DC-DC Converter</div><div class="text-right">${data.costDcDcConverter}</div></div>` : ''}
+                            <div class="grid grid-cols-2 gap-4 py-1"><div>Misc. Supplies</div><div class="text-right">${data.costMisc}</div></div>
+                            <div class="grid grid-cols-2 gap-4 py-1 border-t pt-2"><div>Labour (Install)</div><div class="text-right">${data.costLabour}</div></div>
+                            <div class="grid grid-cols-2 gap-4 py-3 border-t-2 mt-2">
+                                <div class="text-lg font-bold">TOTAL ESTIMATED COST</div>
+                                <div class="text-lg font-bold text-green-800 text-right">${formatCurrency(data.totalCost)}</div>
+                            </div>
+                        </div>
+
+                    </div>
+                    
+                    <!-- NEW NOTES SECTION FOR PRINT REPORT -->
+                    <div class="text-center pt-4 border-t mt-4 text-xs">
+                        <p class="font-bold text-base mb-2 border-b">4. Sales Notes & Installation Clarifications</p>
+                        <div class="text-sm p-2 text-left bg-gray-50 border border-gray-300 whitespace-pre-wrap" style="min-height: 80px;">${data.notes || 'No specific notes were recorded for this quote.'}</div>
+                    </div>
+                    
+                    <!-- FINAL FOOTER / COPYRIGHT -->
+                    <div class="text-center pt-4 border-t mt-4 text-xs text-gray-400">
+                        This calculator provides an estimate only based on customer requirements. All costs are before taxes. <br>
+                        Copyright 2025 S. Syms
+                    </div>
+                `;
+
+                // 1. Temporarily show print content
+                printContainerEl.innerHTML = content;
+
+                // 2. Initiate printing
+                window.print();
+
+                // 3. Clear content after print dialog closes/is completed (optional, but good practice)
+                // Note: The visibility is handled by the CSS @media print block.
+                setTimeout(() => {
+                    printContainerEl.innerHTML = '';
+                }, 500); 
+            }
+
+            printReportBtn.addEventListener('click', printReport);
+
+
+            function updateSliderLabel(sliderEl, labelEl, unit, isPercent = false) {
+                 const value = parseFloat(sliderEl.value);
+                 let displayValue = isPercent ? `${(value * 100).toFixed(0)}%` : `${value.toFixed(1)} ${unit}`;
+                 if(unit === 'days') displayValue = `${value.toFixed(1)} ${value > 1 ? 'days' : 'day'}`
+                 labelEl.textContent = displayValue;
+            }
+
+            function renderAppliances() {
+                applianceListEl.innerHTML = '';
+                if (state.appliances.length === 0) {
+                    applianceListEl.innerHTML = `<p class="text-center text-gray-500 py-4">No appliances added yet. Click 'Add Appliance' to start.</p>`;
+                } else {
+                    const header = `
+                        <div class="grid grid-cols-12 gap-4 px-4 py-2 text-sm font-bold text-gray-700 border-b bg-gray-50">
+                            <div class="col-span-5">Appliance Type</div>
+                            <div class="col-span-2 text-center">Wattage (W)</div>
+                            <div class="col-span-2 text-center">Hours/Day</div>
+                            <div class="col-span-2 text-center">Wh/Day</div>
+                            <div class="col-span-1"></div>
+                        </div>
+                    `;
+                    applianceListEl.innerHTML = header;
+                }
+                
+                state.appliances.forEach(app => {
+                    const whDay = (app.watts * app.hours).toFixed(1);
+                    const el = document.createElement('div');
+                    el.className = 'grid grid-cols-12 gap-4 items-center p-4 border-b last:border-b-0';
+                    el.dataset.id = app.id;
+                    
+                    const dropdownOptions = commonAppliances.map(common => 
+                        `<option value="${common.name}" data-watts="${common.watts}" ${app.type === common.name ? 'selected' : ''}>${common.name}</option>`
+                    ).join('');
+
+                    const isCustom = app.type === 'Custom Appliance';
+                    const wattageInputHtml = isCustom 
+                        ? `<input type="number" value="${app.watts}" min="0" class="appliance-watts w-full rounded-md border-gray-300 shadow-sm text-center focus:border-green-800 focus:ring-green-800">`
+                        : `<input type="number" value="${app.watts}" min="0" class="appliance-watts w-full rounded-md border-gray-300 shadow-sm text-center bg-gray-100 cursor-not-allowed" readonly>`;
+
+
+                    el.innerHTML = `
+                        <div class="col-span-5">
+                            <select class="appliance-type w-full rounded-md border-gray-300 shadow-sm sm:text-sm focus:border-green-800 focus:ring-green-800">
+                                ${dropdownOptions}
+                            </select>
+                        </div>
+                        <div class="col-span-2">
+                            ${wattageInputHtml}
+                        </div>
+                        <div class="col-span-2">
+                            <input type="number" value="${app.hours}" min="0" step="0.1" class="appliance-hours w-full rounded-md border-gray-300 shadow-sm text-center focus:border-green-800 focus:ring-green-800">
+                        </div>
+                        <div class="col-span-2 text-center font-medium text-gray-800">${whDay}</div>
+                        <div class="col-span-1 text-right">
+                            <button class="remove-appliance text-red-500 hover:text-red-700">&times;</button>
+                        </div>
+                    `;
+                    applianceListEl.appendChild(el);
+                });
+            }
+
+            peakSunHoursEl.addEventListener('input', () => updateSliderLabel(peakSunHoursEl, document.getElementById('peakSunHoursValue'), 'h'));
+            systemLossFactorEl.addEventListener('input', () => updateSliderLabel(systemLossFactorEl, document.getElementById('systemLossFactorValue'), '%', true));
+            inverterSurgeFactorEl.addEventListener('input', () => updateSliderLabel(inverterSurgeFactorEl, document.getElementById('inverterSurgeFactorValue'), '%', true));
+
+            // Removed event listener for readinessLevelInputs
+
+            addApplianceBtn.addEventListener('click', () => {
+                const newApplianceType = commonAppliances[0].name; // Default to Custom Appliance
+                const newApplianceWatts = getApplianceWatts(newApplianceType);
+                state.appliances.push({ id: Date.now(), type: newApplianceType, watts: newApplianceWatts, hours: 0 });
+                renderAppliances();
+                calculateAndRender();
+            });
+
+            applianceListEl.addEventListener('click', (e) => {
+                if (e.target.classList.contains('remove-appliance')) {
+                    const id = parseInt(e.target.closest('[data-id]').dataset.id);
+                    state.appliances = state.appliances.filter(app => app.id !== id);
+                    renderAppliances();
+                    calculateAndRender();
+                }
+            });
+
+            applianceListEl.addEventListener('input', (e) => {
+                const rowEl = e.target.closest('[data-id]');
+                const id = parseInt(rowEl.dataset.id);
+                const appliance = state.appliances.find(app => app.id === id);
+                const isCustom = appliance.type === 'Custom Appliance';
+
+                if (e.target.classList.contains('appliance-type')) {
+                    const newType = e.target.value;
+                    const newWatts = getApplianceWatts(newType);
+
+                    appliance.type = newType;
+                    appliance.watts = newWatts;
+                    
+                    // Re-render row to lock/unlock the wattage input and update its value
+                    renderAppliances();
+                    
+                } else if (e.target.classList.contains('appliance-watts')) {
+                    const newWatts = parseFloat(e.target.value) || 0;
+                    appliance.watts = newWatts;
+                    
+                    // If the user manually edits the watts, we assume they are customizing it
+                    // The 'appliance-watts' input will only be editable if 'Custom Appliance' is selected
+                    
+                } else if (e.target.classList.contains('appliance-hours')) {
+                    appliance.hours = parseFloat(e.target.value) || 0;
+                }
+                
+                // Update the visible Wh/Day value on the current row
+                const whEl = rowEl.querySelector('.font-medium');
+                whEl.textContent = (appliance.watts * appliance.hours).toFixed(1);
+
+                calculateAndRender();
+            });
+            
+            document.querySelectorAll('input, select').forEach(el => {
+                // Now, all relevant inputs trigger recalculation
+                el.addEventListener('input', calculateAndRender);
+            });
+
+
+            function init() {
+                renderAppliances();
+                calculateAndRender();
+                updateSliderLabel(peakSunHoursEl, document.getElementById('peakSunHoursValue'), 'h');
+                updateSliderLabel(systemLossFactorEl, document.getElementById('systemLossFactorValue'), '%', true);
+                updateSliderLabel(inverterSurgeFactorEl, document.getElementById('inverterSurgeFactorValue'), '%', true); // INIT SURGE
+            }
+
+            init();
+        });
+    </script>
+</body>
+</html>
